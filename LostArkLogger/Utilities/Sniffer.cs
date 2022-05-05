@@ -29,14 +29,12 @@ namespace LostArkLogger
             socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.HeaderIncluded, true);
             socket.IOControl(IOControlCode.ReceiveAll, BitConverter.GetBytes(1), BitConverter.GetBytes(0));
             socket.BeginReceive(packetBuffer, 0, packetBuffer.Length, SocketFlags.None, new AsyncCallback(OnReceive), null);
-            Task.Run(() =>
+            Task.Run(async () =>
             {
-                while (!packetQueue.IsCompleted)
+                while (true)
                 {
-                    if (packetQueue.TryTake(out Byte[] packet))
-                    {
-                        Device_OnPacketArrival(packet);
-                    }
+                    var packet = await packetQueue.DequeueAsync();
+                    Device_OnPacketArrival(packet);
                 }
             });
             
@@ -160,7 +158,7 @@ namespace LostArkLogger
             }
         }
         TcpReconstruction tcpReconstruction;
-        BlockingCollection<Byte[]> packetQueue = new BlockingCollection<Byte[]>();
+        AsyncQueue<Byte[]> packetQueue = new AsyncQueue<Byte[]>();
         Byte[] fragmentedRead = new Byte[0];
         private void OnReceive(IAsyncResult ar)
         {
@@ -171,7 +169,7 @@ namespace LostArkLogger
                 {
                     var packets = new Byte[(int)bytesRead];
                     Array.Copy(packetBuffer, packets, (int)bytesRead);
-                    packetQueue.Add(packets);
+                    packetQueue.Enqueue(packets);
                 }
             }
             catch (Exception ex)
